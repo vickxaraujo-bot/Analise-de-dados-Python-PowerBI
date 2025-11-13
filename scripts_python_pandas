@@ -1,0 +1,154 @@
+#  Projeto: Limpeza e Tratamento de Dados - TechVix
+# Autora: Victória Araújo
+# Descrição:
+#   Este script lê dados fictícios de vendas, clientes, lojas,
+#   produtos e devoluções. Realiza limpeza, padronização e
+#   verificação de consistência entre as tabelas.
+# ============================================
+
+import pandas as pd
+import numpy as np
+import os
+from datetime import datetime
+
+# ============================================
+# 📁 1. Definir diretórios
+# ============================================
+pasta_entrada = "./"  # onde estão as planilhas originais
+pasta_saida = "./dados_tratados"
+os.makedirs(pasta_saida, exist_ok=True)
+
+# ============================================
+#  2. Carregar as planilhas
+# ============================================
+clientes = pd.read_excel(os.path.join(pasta_entrada, "cadastro_clientes.xlsx"))
+lojas = pd.read_excel(os.path.join(pasta_entrada, "cadastro_lojas.xlsx"))
+produtos = pd.read_excel(os.path.join(pasta_entrada, "cadastro_produtos.xlsx"))
+vendas = pd.read_excel(os.path.join(pasta_entrada, "base_vendas.xlsx"))
+devolucoes = pd.read_excel(os.path.join(pasta_entrada, "base_devolucoes.xlsx"))
+
+# ============================================
+#  3. Funções auxiliares de limpeza
+# ============================================
+def limpar_documento(doc):
+    """Remove caracteres não numéricos e padroniza tamanho."""
+    if pd.isna(doc):
+        return np.nan
+    doc = ''.join(filter(str.isdigit, str(doc)))
+    if len(doc) < 11:
+        return np.nan
+    return doc
+
+def limpar_texto(txt):
+    """Padroniza textos (tudo minúsculo e sem espaços extras)."""
+    if pd.isna(txt):
+        return np.nan
+    return str(txt).strip().title()
+
+def corrigir_data(dt):
+    """Converte data e trata erros."""
+    try:
+        return pd.to_datetime(dt, errors="coerce", dayfirst=True)
+    except:
+        return np.nan
+
+# ============================================
+#  4. Limpeza - Clientes
+# ============================================
+print("Tratando clientes...")
+clientes["nome_completo"] = clientes["nome_completo"].apply(limpar_texto)
+clientes["documento"] = clientes["documento"].apply(limpar_documento)
+clientes["email"] = clientes["email"].str.lower().str.strip()
+clientes["data_nascimento"] = clientes["data_nascimento"].apply(corrigir_data)
+
+# Remover duplicatas e linhas com email/documento inválido
+clientes = clientes.drop_duplicates(subset=["documento", "email"], keep="first")
+clientes = clientes[clientes["email"].str.contains("@", na=False)]
+
+# ============================================
+#  5. Limpeza - Lojas
+# ============================================
+print("Tratando lojas...")
+lojas["nome_da_loja"] = lojas["nome_da_loja"].apply(limpar_texto)
+lojas["gerente_da_loja"] = lojas["gerente_da_loja"].apply(limpar_texto)
+lojas["documento"] = lojas["documento"].apply(limpar_documento)
+lojas = lojas.drop_duplicates(subset=["id_loja"], keep="first")
+
+# ============================================
+#  6. Limpeza - Produtos
+# ============================================
+print("Tratando produtos...")
+produtos["nome_do_produto"] = produtos["nome_do_produto"].apply(limpar_texto)
+produtos["marca"] = produtos["marca"].apply(limpar_texto)
+produtos["categoria"] = produtos["categoria"].apply(limpar_texto)
+produtos["preco_unitario"] = pd.to_numeric(produtos["preco_unitario"], errors="coerce")
+produtos["custo_unitario"] = pd.to_numeric(produtos["custo_unitario"], errors="coerce")
+
+# Remover preços negativos ou absurdos
+produtos = produtos[(produtos["preco_unitario"] > 0) & (produtos["preco_unitario"] < 10000)]
+
+# ============================================
+#  7. Limpeza - Vendas
+# ============================================
+print("Tratando vendas...")
+vendas["data_venda"] = vendas["data_venda"].apply(corrigir_data)
+vendas["quantidade_vendida"] = pd.to_numeric(vendas["quantidade_vendida"], errors="coerce")
+
+# Remover quantidades inválidas
+vendas = vendas[vendas["quantidade_vendida"] > 0]
+
+# Validar relacionamentos
+vendas = vendas[vendas["id_cliente"].isin(clientes["id"])]
+vendas = vendas[vendas["sku"].isin(produtos["sku"])]
+vendas = vendas[vendas["id_loja"].isin(lojas["id_loja"])]
+
+# ============================================
+#  8. Limpeza - Devoluções
+# ============================================
+print("Tratando devoluções...")
+devolucoes["data_devolucao"] = devolucoes["data_devolucao"].apply(corrigir_data)
+devolucoes["quantidade_devolvida"] = pd.to_numeric(devolucoes["quantidade_devolvida"], errors="coerce")
+
+# Corrigir quantidades negativas
+devolucoes["quantidade_devolvida"] = devolucoes["quantidade_devolvida"].apply(lambda x: np.nan if x is None or x <= 0 else x)
+
+# Manter apenas devoluções válidas (com relação a uma venda existente)
+devolucoes = devolucoes[devolucoes["ordem_compra"].isin(vendas["ordem_compra"])]
+
+# Validar relacionamentos
+devolucoes = devolucoes[
+    devolucoes["id_cliente"].isin(clientes["id"]) &
+    devolucoes["id_loja"].isin(lojas["id_loja"]) &
+    devolucoes["sku"].isin(produtos["sku"])
+]
+
+# ============================================
+#  9. Exportar planilhas tratadas
+# ============================================
+clientes.to_excel(os.path.join(pasta_saida, "cadastro_clientes_tratado.xlsx"), index=False)
+lojas.to_excel(os.path.join(pasta_saida, "cadastro_lojas_tratado.xlsx"), index=False)
+produtos.to_excel(os.path.join(pasta_saida, "cadastro_produtos_tratado.xlsx"), index=False)
+vendas.to_excel(os.path.join(pasta_saida, "base_vendas_tratada.xlsx"), index=False)
+devolucoes.to_excel(os.path.join(pasta_saida, "base_devolucoes_tratada.xlsx"), index=False)
+
+# ============================================
+#  10. Geração de resumo de tratamento
+# ============================================
+resumo = f"""
+Resumo do tratamento - TechVix
+Data/Hora: {datetime.now()}
+-------------------------------
+Clientes: {len(clientes)} registros tratados
+Lojas: {len(lojas)} registros tratados
+Produtos: {len(produtos)} registros tratados
+Vendas: {len(vendas)} registros tratados
+Devoluções: {len(devolucoes)} registros tratados
+"""
+
+print(resumo)
+
+with open(os.path.join(pasta_saida, "resumo_tratamento.txt"), "w", encoding="utf-8") as f:
+    f.write(resumo)
+
+print("\n✅ Tratamento concluído com sucesso!")
+print(f"Arquivos salvos em: {pasta_saida}")
