@@ -2,7 +2,7 @@
 📊 Análise de Dados com Python, Excel e Power BI
 ETL completo: extração, limpeza, padronização e organização dos dados
 ##
-Este projeto demonstra um fluxo profissional de preparação de dados, utilizando Python (pandas) para tratar tabelas Excel de um cenário fictício de vendas e devoluções.
+Este projeto demonstra um fluxo de preparação de dados, utilizando Python (pandas) para tratar tabelas Excel de um cenário fictício de vendas.
 O resultado é um conjunto de dados padronizado, limpo e organizado, pronto para análises em qualquer ferramenta — como Power BI, Tableau ou Excel.
 ##
 
@@ -15,7 +15,7 @@ Este projeto implementa um pipeline ETL completo, com foco em:
 ✔️ Validação cruzada entre tabelas
 ✔️ Exportação final para análise em Power BI
 
-O objetivo é transformar múltiplas fontes de dados brutos em um conjunto tratado, confiável e pronto para análise de indicadores de negócios.
+O objetivo é transformar múltiplas fontes de dados em um conjunto tratado, confiável e pronto para análise de indicadores de negócios.
 ##
 🏗️ Arquitetura do Projeto
 
@@ -52,19 +52,25 @@ O objetivo é transformar múltiplas fontes de dados brutos em um conjunto trata
 ##
 🧼 O que o script faz?
 
-Limpa textos e padroniza nomes
+Carrega arquivos Excel de uma pasta específica
 
-Ajusta e valida documentos
+Remove espaços extras em todas as colunas de texto
 
-Corrige formatos de data
+Padroniza textos convertendo tudo para string
 
-Remove duplicatas
+Limpa e converte datas automaticamente
 
-Corrige valores inválidos
+Converte datas em formato serial do Excel (números tipo 45210)
 
-Valida relações entre tabelas (cliente, loja, produto, vendas, devoluções)
+Converte colunas numéricas que estão como texto
 
-Exporta arquivos tratados automaticamente
+Padroniza a coluna de gênero (Masculino / Feminino / Outro)
+
+Remove linhas duplicadas
+
+Gera um novo arquivo tratado com o sufixo _tratado_python
+
+Repete o processo para todos os arquivos da lista
 
 ##
      🔧 Tecnologias Utilizadas
@@ -82,18 +88,6 @@ As tabelas finais, já limpas e prontas para o Power BI, estão em:
 
 /dados_tratados/
 
-
-Incluem:
-
-vendas_tratado.xlsx
-
-devolucoes_tratado.xlsx
-
-cadastro_produtos_tratado.xlsx
-
-cadastro_clientes_tratado.xlsx
-
-cadastro_lojas_tratado.xlsx
 ##
 📊 Dashboard
 
