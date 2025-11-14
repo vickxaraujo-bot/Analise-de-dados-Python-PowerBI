@@ -1,9 +1,0 @@
-
-Resumo do tratamento - TechVix
-Data/Hora: 2025-11-13 19:19:21.610216
-
-Clientes tratados: 448
-Lojas tratadas: 500
-Produtos tratados: 405
-Vendas tratadas: 294
-Devoluções tratadas: 79
