@@ -1,135 +1,87 @@
 #  Projeto: Limpeza e Tratamento de Dados - TechVix
 # Autora: Victória Araújo
 # Descrição:
-#   Este script lê dados fictícios de vendas, clientes, lojas,
-#   produtos e devoluções. Realiza limpeza.
-# ============================================
+#   Este script lê dados fictícios com erros, faz limpeza e tratamento,
+#   e exporta novamente para uma pasta organizada sem erros.
+# ===============================================================
 
 import pandas as pd
-import numpy as np
 import os
-from datetime import datetime
 
-# ============================================
-# 1. Definir diretórios
-# ============================================
-pasta_entrada = r"C:\Users\Kellem Victoria\Documents\dados.originais_"
-pasta_saida = "./dados_tratados"
-os.makedirs(pasta_saida, exist_ok=True)
+# Caminho da pasta onde estão os arquivos
+base_path = r"C:\Users\Kellem Victoria\Documents\testedenovo"
 
-# ============================================
-# 2. Carregar planilhas
-# ============================================
-clientes = pd.read_excel(os.path.join(pasta_entrada, "cadastro_clientes.xlsx"))
-lojas = pd.read_excel(os.path.join(pasta_entrada, "cadastro_lojas.xlsx"))
-produtos = pd.read_excel(os.path.join(pasta_entrada, "cadastro_produtos.xlsx"))
-vendas = pd.read_excel(os.path.join(pasta_entrada, "base_vendas.xlsx"))
-devolucoes = pd.read_excel(os.path.join(pasta_entrada, "base_devolucoes.xlsx"))
+def limpar_dados(nome_arquivo):
+    path_entrada = os.path.join(base_path, nome_arquivo)
+    path_saida = os.path.join(base_path, nome_arquivo.replace("_dirty", "_tratado_python"))
 
-# ============================================
-# 3. Funções de limpeza
-# ============================================
+    df = pd.read_excel(path_entrada)
 
-def limpar_documento(doc):
-    if pd.isna(doc):
-        return np.nan
-    doc = ''.join(filter(str.isdigit, str(doc)))
-    return doc if len(doc) >= 11 else np.nan
+    # -------- LIMPEZAS GERAIS --------
 
-def limpar_texto(txt):
-    if pd.isna(txt):
-        return np.nan
-    return str(txt).strip().title()
+    # Remover espaços em colunas de texto
+    for col in df.select_dtypes(include="object").columns:
+        df[col] = df[col].astype(str).str.strip()
 
-def corrigir_data(dt):
-    return pd.to_datetime(dt, errors="coerce", dayfirst=True)
+    # -------- TRATAMENTO DE DATAS --------
 
-# ============================================
-# 4. Limpeza — Clientes
-# ============================================
-clientes["nome_completo"] = clientes["nome_completo"].apply(limpar_texto)
-clientes["email"] = clientes["email"].str.lower().str.strip()
-clientes["documento"] = clientes["documento"].apply(limpar_documento)
-clientes["data_nascimento"] = clientes["data_nascimento"].apply(corrigir_data)
+    for col in df.columns:
 
-clientes = clientes.drop_duplicates(subset=["id_cliente"], keep="first")
-clientes = clientes[clientes["email"].str.contains("@", na=False)]
+        # Se for coluna de data ou nascimento
+        if "data" in col.lower() or "nascimento" in col.lower():
 
-# ============================================
-# 5. Limpeza — Lojas
-# ============================================
-lojas["nome_loja"] = lojas["nome_loja"].apply(limpar_texto)
-lojas["gerente_loja"] = lojas["gerente_loja"].apply(limpar_texto)
-lojas["documento"] = lojas["documento"].apply(limpar_documento)
+            # 1) Tentar converter normalmente
+            df[col] = pd.to_datetime(df[col], errors="coerce")
 
-lojas = lojas.drop_duplicates(subset=["id_loja"], keep="first")
+            # 2) Se não funcionar, tentar converter como número serial do Excel
+            if df[col].isna().sum() > 0:
+                # tentar dias desde 1899
+                try:
+                    df[col] = pd.to_datetime(df[col], unit="d",
+                                             origin="1899-12-30", errors="ignore")
+                except:
+                    pass
 
-# ============================================
-# 6. Limpeza — Produtos
-# ============================================
-produtos["nome_produto"] = produtos["nome_produto"].apply(limpar_texto)
-produtos["marca"] = produtos["marca"].apply(limpar_texto)
-produtos["categoria"] = produtos["categoria"].apply(limpar_texto)
+    # -------- TRATAMENTO DE COLUNAS NUMÉRICAS --------
+    for col in df.columns:
+        
+        if df[col].dtype == object:
+            if df[col].str.replace('.', '', 1).str.replace('-', '', 1).str.isdigit().all():
+                df[col] = pd.to_numeric(df[col], errors="coerce")
 
-produtos["preco_unitario"] = pd.to_numeric(produtos["preco_unitario"], errors="coerce")
-produtos["custo_unitario"] = pd.to_numeric(produtos["custo_unitario"], errors="coerce")
+    # -------- TRATAMENTO DE GÊNERO --------
+    if "gênero" in df.columns or "genero" in df.columns:
+        col_genero = "gênero" if "gênero" in df.columns else "genero"
 
-produtos = produtos[(produtos["preco_unitario"] > 0) & (produtos["preco_unitario"] < 10000)]
+        df[col_genero] = df[col_genero].str.lower().str.strip()
 
-# ============================================
-# 7. Limpeza — Vendas
-# ============================================
-vendas["data_venda"] = vendas["data_venda"].apply(corrigir_data)
-vendas["quantidade_vendida"] = pd.to_numeric(vendas["quantidade_vendida"], errors="coerce")
+        df[col_genero] = df[col_genero].replace({
+            "m": "Masculino",
+            "f": "Feminino",
+            "masculino": "Masculino",
+            "feminino": "Feminino"
+        })
 
-vendas = vendas[vendas["quantidade_vendida"] > 0]
+        df[col_genero] = df[col_genero].replace("nan", "Outro")
+        df[col_genero] = df[col_genero].fillna("Outro")
 
-vendas = vendas[vendas["id_cliente"].isin(clientes["id_cliente"])]
-vendas = vendas[vendas["sku"].isin(produtos["sku"])]
-vendas = vendas[vendas["id_loja"].isin(lojas["id_loja"])]
+    # Remover duplicatas
+    df = df.drop_duplicates()
 
-# ============================================
-# 8. Limpeza — Devoluções
-# ============================================
-devolucoes["data_devolucao"] = devolucoes["data_devolucao"].apply(corrigir_data)
-devolucoes["quantidade_devolvida"] = pd.to_numeric(devolucoes["quantidade_devolvida"], errors="coerce")
+    # Salvar
+    df.to_excel(path_saida + ".xlsx", index=False)
+    print(f"Arquivo tratado salvo em: {path_saida}.xlsx")
 
-devolucoes = devolucoes[devolucoes["quantidade_devolvida"] > 0]
 
-devolucoes = devolucoes[devolucoes["ordem_compra"].isin(vendas["ordem_compra"])]
+# -------- LISTA REAL DOS ARQUIVOS --------
 
-devolucoes = devolucoes[
-    devolucoes["id_cliente"].isin(clientes["id_cliente"]) &
-    devolucoes["id_loja"].isin(lojas["id_loja"]) &
-    devolucoes["sku"].isin(produtos["sku"])
+arquivos = [
+    "REAL_dCadastroCliente_dirty.xlsx",
+    "REAL_dCadastroLojas_dirty.xlsx",
+    "REAL_dCadastroProdutos_dirty.xlsx",
+    "REAL_fBaseVendas_dirty.xlsx"
 ]
 
-# ============================================
-# 9. Exportar arquivos tratados
-# ============================================
-clientes.to_excel(os.path.join(pasta_saida, "cadastro_clientes_tratado.xlsx"), index=False)
-lojas.to_excel(os.path.join(pasta_saida, "cadastro_lojas_tratado.xlsx"), index=False)
-produtos.to_excel(os.path.join(pasta_saida, "cadastro_produtos_tratado.xlsx"), index=False)
-vendas.to_excel(os.path.join(pasta_saida, "base_vendas_tratada.xlsx"), index=False)
-devolucoes.to_excel(os.path.join(pasta_saida, "base_devolucoes_tratada.xlsx"), index=False)
-
-# ============================================
-# 10. Resumo
-# ============================================
-resumo = f"""
-Resumo do tratamento - TechVix
-Data/Hora: {datetime.now()}
-
-Clientes tratados: {len(clientes)}
-Lojas tratadas: {len(lojas)}
-Produtos tratados: {len(produtos)}
-Vendas tratadas: {len(vendas)}
-Devoluções tratadas: {len(devolucoes)}
-"""
-
-with open(os.path.join(pasta_saida, "resumo_tratamento.txt"), "w", encoding="utf-8") as f:
-    f.write(resumo)
-
-print("\n✅ Tratamento concluído com sucesso!")
-print(f"Arquivos salvos em: {pasta_saida}")
+for arquivo in arquivos:
+    limpar_dados(arquivo)
 
